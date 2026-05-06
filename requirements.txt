@@ -1,0 +1,25 @@
+# ── Core runtime ─────────────────────────────────────
+MetaTrader5>=5.0.45
+pyzmq>=26.0
+pandas>=2.2
+numpy>=1.26
+python-dotenv>=1.0
+requests>=2.32
+
+# ── Phase 2: regime + strategies ─────────────────────
+scikit-learn>=1.5
+scipy>=1.13
+
+# ── Phase 3: backtest + optimisation ─────────────────
+backtesting>=0.3.3
+optuna>=3.6
+
+# ── Optional speedups (install separately on Windows) ─
+# Install TA-Lib via pre-compiled wheel, NOT this file:
+#   pip install https://github.com/cgohlke/talib-build/releases/...
+# ta-lib
+
+# ── Dev / test ───────────────────────────────────────
+pytest>=8.0
+pytest-cov>=5.0
+ruff>=0.5
