@@ -14,6 +14,7 @@ import logging
 from config.settings import PRIMARY_TF, SYMBOL, TIMEFRAMES
 from python.backtest.data_loader import load_all
 from python.backtest.engine import BacktestEngine
+from python.core.mt5_connector import MT5Connector
 from python.strategies.trend_pullback import TrendPullback
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -24,6 +25,23 @@ STRATEGIES = {
 }
 
 
+def _symbol_specs(symbol: str) -> dict:
+    """Pull contract_size, pip_size, lot_step etc. from the live MT5 terminal.
+    Falls back to FX defaults if the terminal is unreachable."""
+    conn = MT5Connector()
+    if not conn.connect():
+        log.warning("MT5 not reachable — using FX defaults for %s", symbol)
+        return {"contract_size": 100_000, "pip_size": 0.0001,
+                "min_lot": 0.01, "max_lot": 50.0, "lot_step": 0.01}
+    info = conn.get_symbol_info(symbol)
+    conn.disconnect()
+    if not info:
+        raise SystemExit(f"Could not fetch symbol info for {symbol}")
+    log.info("%s | contract=%s pip=%s lot_step=%s",
+             symbol, info["contract_size"], info["pip_size"], info["lot_step"])
+    return info
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--strategy", default="trend_pullback", choices=list(STRATEGIES))
@@ -32,10 +50,14 @@ def main() -> None:
     ap.add_argument("--tfs",      nargs="+", default=TIMEFRAMES)
     args = ap.parse_args()
 
+    specs    = _symbol_specs(args.symbol)
     frames   = load_all(args.symbol, args.tfs)
     strategy = STRATEGIES[args.strategy]()
     engine   = BacktestEngine(
-        symbol=args.symbol, primary_tf=PRIMARY_TF, starting_balance=args.balance
+        symbol=args.symbol, primary_tf=PRIMARY_TF, starting_balance=args.balance,
+        contract_size=specs["contract_size"], pip_size=specs["pip_size"],
+        tick_size=specs.get("tick_size"), tick_value=specs.get("tick_value"),
+        min_lot=specs["min_lot"], max_lot=specs["max_lot"], lot_step=specs["lot_step"],
     )
     result   = engine.run(strategy, frames)
     m        = result.metrics

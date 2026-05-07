@@ -83,6 +83,8 @@ class BacktestEngine:
         commission_per_lot: float = BACKTEST_COMMISSION_PER_LOT,
         contract_size:    float = 100_000,
         pip_size:         float = 0.0001,
+        tick_size:        float | None = None,
+        tick_value:       float | None = None,
         min_lot:          float = 0.01,
         max_lot:          float = 50.0,
         lot_step:         float = 0.01,
@@ -95,6 +97,8 @@ class BacktestEngine:
         self.commission_per_lot = commission_per_lot
         self.contract_size      = contract_size
         self.pip_size           = pip_size
+        self.tick_size          = tick_size
+        self.tick_value         = tick_value
         self.min_lot            = min_lot
         self.max_lot            = max_lot
         self.lot_step           = lot_step
@@ -239,6 +243,8 @@ class BacktestEngine:
             min_lot       = self.min_lot,
             max_lot       = self.max_lot,
             lot_step      = self.lot_step,
+            tick_size     = self.tick_size,
+            tick_value    = self.tick_value,
         )
         # Apply spread cost at entry by worsening fill price
         spread_cost = self.spread_pips * self.pip_size
@@ -247,7 +253,10 @@ class BacktestEngine:
         else:
             entry_fill = c.entry_price - spread_cost / 2
 
-        planned_risk = abs(entry_fill - c.sl_price) * self.contract_size * lots
+        planned_risk = self._currency_pnl(
+            entry_fill, c.sl_price, lots, c.action
+        )
+        planned_risk = abs(planned_risk)
         return {
             "entry_time":   now.to_pydatetime(),
             "action":       c.action,
@@ -260,6 +269,13 @@ class BacktestEngine:
             "tier":         c.tier,
             "regime":       regime,
         }
+
+    def _currency_pnl(self, entry: float, exit_: float, lots: float, action: str) -> float:
+        """Convert price diff → account-currency PnL using tick_value if available."""
+        diff = (exit_ - entry) if action == "BUY" else (entry - exit_)
+        if self.tick_size and self.tick_value and self.tick_size > 0:
+            return (diff / self.tick_size) * self.tick_value * lots
+        return diff * self.contract_size * lots
 
     @staticmethod
     def _check_exit(trade: dict, bar: pd.Series) -> Optional[dict]:
@@ -290,10 +306,9 @@ class BacktestEngine:
         exit_time: pd.Timestamp,
     ) -> Trade:
         exit_price = exit_info["price"]
-        if trade["action"] == "BUY":
-            gross = (exit_price - trade["entry_price"]) * self.contract_size * trade["lots"]
-        else:
-            gross = (trade["entry_price"] - exit_price) * self.contract_size * trade["lots"]
+        gross      = self._currency_pnl(
+            trade["entry_price"], exit_price, trade["lots"], trade["action"]
+        )
 
         commission = self.commission_per_lot * trade["lots"]
         pnl        = gross - commission

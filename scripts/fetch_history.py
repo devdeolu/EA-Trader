@@ -30,13 +30,17 @@ def main() -> None:
     ap.add_argument("--bars",   type=int, default=50_000)
     args = ap.parse_args()
 
+    # Per-TF caps so we don't ask the broker for unrealistic histories
+    tf_caps = {"M5": 100_000, "M15": 50_000, "H1": 30_000, "H4": 10_000, "D1": 5_000}
+
     conn = MT5Connector()
     if not conn.connect():
         raise SystemExit("Could not connect to MT5 terminal")
 
     for tf in args.tfs:
-        log.info("Fetching %s %s (%d bars)...", args.symbol, tf, args.bars)
-        df = conn.get_ohlcv(args.symbol, tf, args.bars)
+        bars = min(args.bars, tf_caps.get(tf, args.bars))
+        log.info("Fetching %s %s (%d bars)...", args.symbol, tf, bars)
+        df = conn.get_ohlcv(timeframe=tf, bars=bars, symbol=args.symbol)
         if df is None or df.empty:
             log.warning("No data returned for %s %s", args.symbol, tf)
             continue

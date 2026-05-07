@@ -28,13 +28,18 @@ def compute_lots(
     min_lot:       float,
     max_lot:       float,
     lot_step:      float,
+    tick_size:     float | None = None,
+    tick_value:    float | None = None,
 ) -> float:
     """
     Return the lot size that risks `risk_pct` of `balance` if SL is hit.
 
-    Simplified pip-value model that's accurate for quote-currency = account
-    currency (e.g. EURUSD on a USD account). For cross pairs you'd convert
-    with a pip-value lookup; we keep this explicit and small for now.
+    Two modes:
+      - If `tick_size` and `tick_value` are provided (preferred), uses MT5's
+        broker-supplied per-tick value. Works correctly for ANY symbol
+        (FX majors, JPY crosses, gold, indices) with no currency math.
+      - Otherwise falls back to the simple `sl_distance * contract_size`
+        formula — only correct when quote currency == account currency.
     """
     if balance <= 0 or risk_pct <= 0:
         return 0.0
@@ -44,8 +49,14 @@ def compute_lots(
         log.warning("Invalid SL distance — returning 0 lots")
         return 0.0
 
-    risk_dollars     = balance * (risk_pct / 100.0)
-    loss_per_unit    = sl_distance * contract_size  # per 1.00 lot
+    risk_dollars = balance * (risk_pct / 100.0)
+
+    if tick_size and tick_value and tick_size > 0:
+        # Loss per 1.00 lot if SL hit, in account currency
+        loss_per_unit = (sl_distance / tick_size) * tick_value
+    else:
+        loss_per_unit = sl_distance * contract_size
+
     if loss_per_unit <= 0:
         return 0.0
 

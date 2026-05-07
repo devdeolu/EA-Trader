@@ -5,6 +5,8 @@
 
 # ── Broker / symbol ──────────────────────────────────────────────────────────
 SYMBOL          = "EURUSD"
+SYMBOLS         = ["EURUSD", "GBPUSD", "XAUUSD", "USDJPY",
+                   "AUDUSD", "AUDJPY", "GBPJPY"]   # multi-symbol watchlist
 TIMEFRAMES      = ["M5", "M15", "H1", "H4", "D1"]   # top-down stack
 PRIMARY_TF      = "M15"                               # entry timeframe
 MAGIC_NUMBER    = 20260101                            # unique EA identifier
@@ -23,9 +25,10 @@ MAX_TRADES_PER_DAY      = 3
 MAX_CONSECUTIVE_LOSSES  = 2
 EOD_CLOSE_TIME          = "23:30"   # NY time — force close all positions
 
-# ── Risk per trade ────────────────────────────────────────────────────────────
-TIER_A_RISK_PCT = 1.5   # % of account balance — high-confidence signals
-TIER_B_RISK_PCT = 1.0   # % of account balance — standard signals
+# ── Risk per trade ──────────────────────────────────────────────────────────────
+# Forward-test sizing — 1/6 of production. Raise after 30 days of clean OOS.
+TIER_A_RISK_PCT = 0.25  # % of account balance — high-confidence signals
+TIER_B_RISK_PCT = 0.15  # % of account balance — standard signals
 MIN_RR_RATIO    = 1.5   # minimum reward:risk to take any trade
 MAX_SPREAD_PIPS = 1.5   # reject entry if spread exceeds this
 

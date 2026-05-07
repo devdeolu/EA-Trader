@@ -12,12 +12,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 from typing import Optional
 
 import MetaTrader5 as mt5
 import pandas as pd
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from config.settings import LOG_LEVEL, SYMBOL
 from python.core.indicators import add_indicators  # re-exported for callers
@@ -51,7 +58,18 @@ class MT5Connector:
 
     def connect(self) -> bool:
         """Initialise connection to MT5 terminal. Returns True on success."""
-        if not mt5.initialize():
+        login    = os.getenv("MT5_LOGIN")
+        password = os.getenv("MT5_PASSWORD")
+        server   = os.getenv("MT5_SERVER")
+        path     = os.getenv("MT5_TERMINAL_PATH")
+
+        kwargs = {}
+        if path:
+            kwargs["path"] = path
+        if login and password and server:
+            kwargs.update(login=int(login), password=password, server=server)
+
+        if not mt5.initialize(**kwargs):
             log.error(f"MT5 initialise failed: {mt5.last_error()}")
             return False
 
@@ -60,8 +78,13 @@ class MT5Connector:
             log.error("Could not retrieve terminal info.")
             return False
 
-        log.info(f"Connected to MT5 | Build: {info.build} | "
-                 f"Company: {info.company}")
+        acc = mt5.account_info()
+        log.info(
+            "Connected to MT5 | Build: %s | Login: %s | Server: %s",
+            info.build,
+            getattr(acc, "login", "?"),
+            getattr(acc, "server", "?"),
+        )
         self.connected = True
         return True
 
@@ -259,6 +282,8 @@ class MT5Connector:
             "point":          info.point,
             "pip_size":       info.point * 10,
             "contract_size":  info.trade_contract_size,
+            "tick_size":      info.trade_tick_size,
+            "tick_value":     info.trade_tick_value,
             "min_lot":        info.volume_min,
             "max_lot":        info.volume_max,
             "lot_step":       info.volume_step,
