@@ -31,6 +31,7 @@ TIER_A_RISK_PCT = 0.25  # % of account balance — high-confidence signals
 TIER_B_RISK_PCT = 0.15  # % of account balance — standard signals
 MIN_RR_RATIO    = 1.5   # minimum reward:risk to take any trade
 MAX_SPREAD_PIPS = 1.5   # reject entry if spread exceeds this
+STRICT_TIER_A   = False # if True, reject signals with score < MIN_QUALITY_SCORE (quality gate)
 
 # ── Session windows (UTC) ─────────────────────────────────────────────────────
 # London: 07:00–16:00 UTC  |  NY: 12:00–21:00 UTC  |  Overlap: 12:00–16:00 UTC
@@ -54,6 +55,12 @@ BB_PERIOD           = 20
 BB_STD              = 2.0
 REGIME_ADX_TREND    = 25.0   # ADX above this = trending regime
 REGIME_ADX_RANGE    = 20.0   # ADX below this = ranging regime
+
+# ── Structural entry filters (Option A) ───────────────────────────────────────
+FILTER_H1_ADX_MIN   = 18.0   # require H1 ADX >= this (multi-TF trend strength)
+FILTER_D1_SLOPE_MIN = 0.0    # require D1 EMA_MACRO slope >0 for longs (<0 shorts)
+FILTER_ATR_RATIO_MIN= 0.7    # M15 ATR must be >= this × 20-bar avg (kills chop)
+ENABLE_FILTERS      = False  # master switch — turn on to apply structural filters above
 
 # ── Partial take profit ───────────────────────────────────────────────────────
 PARTIAL_TP_R        = 1.5    # close 50% at this R multiple

@@ -109,13 +109,19 @@ class BacktestEngine:
         self,
         strategy: Strategy,
         frames:   dict[str, pd.DataFrame],
+        pre_enriched: bool = False,
     ) -> BacktestResult:
         """
         frames: dict of TF → raw OHLCV DataFrame indexed by UTC timestamp.
                 Indicators are computed once up-front.
+                If pre_enriched=True, frames are assumed to already contain
+                indicator columns (saves ~minutes when sweeping params).
         """
         # Pre-compute indicators on each TF (huge speedup vs. per-bar recompute)
-        enriched = {tf: add_indicators(df) for tf, df in frames.items()}
+        if pre_enriched:
+            enriched = frames
+        else:
+            enriched = {tf: add_indicators(df) for tf, df in frames.items()}
 
         primary = enriched[self.primary_tf]
         if len(primary) <= self.warmup_bars:

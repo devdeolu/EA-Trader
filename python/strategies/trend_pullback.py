@@ -27,9 +27,14 @@ from typing import Optional
 import pandas as pd
 
 from config.settings import (
+    ENABLE_FILTERS,
+    FILTER_ATR_RATIO_MIN,
+    FILTER_D1_SLOPE_MIN,
+    FILTER_H1_ADX_MIN,
     LOG_LEVEL,
     MIN_RR_RATIO,
     PARTIAL_TP_R,
+    STRICT_TIER_A,
     TIER_A_RISK_PCT,
     TIER_B_RISK_PCT,
 )
@@ -45,7 +50,8 @@ SL_ATR_BUFFER     = 0.5     # SL = swing extreme +/- this × ATR
 SWING_LOOKBACK    = 5       # bars used to find recent swing high/low
 RSI_OVERBOUGHT    = 70.0
 RSI_OVERSOLD      = 30.0
-TIER_A_SCORE      = 7.0
+TIER_A_SCORE      = 7.0     # promote to Tier A risk size at this score
+MIN_QUALITY_SCORE = 4.5     # reject signals below this when STRICT_TIER_A=True
 TARGET_R          = max(2.0, MIN_RR_RATIO)
 
 
@@ -81,6 +87,35 @@ class TrendPullback(Strategy):
         # ── H1 trend confirmation ────────────────────────────────────────
         h1_up   = last_h1["ema_fast"] > last_h1["ema_slow"]
         h1_down = last_h1["ema_fast"] < last_h1["ema_slow"]
+
+        # ── Structural filters (Option A) ───────────────────────────────
+        if ENABLE_FILTERS:
+            # 1) H1 ADX strength — multi-TF trend confirmation
+            h1_adx = float(last_h1.get("adx", 0))
+            if h1_adx < FILTER_H1_ADX_MIN:
+                return None
+
+            # 2) D1 EMA_MACRO slope — must align with bias
+            if len(d1) >= 7:
+                slope = float(last_d1["ema_macro"] - d1.iloc[-7]["ema_macro"])
+            else:
+                slope = 0.0
+
+            # 3) M15 ATR floor — skip dead/chop bars
+            if len(m15) >= 22:
+                atr_avg = float(m15["atr"].iloc[-22:-2].mean())
+                atr_now = float(last_m15["atr"])
+                atr_ratio = atr_now / atr_avg if atr_avg > 0 else 1.0
+            else:
+                atr_ratio = 1.0
+            if atr_ratio < FILTER_ATR_RATIO_MIN:
+                return None
+
+            if long_bias and h1_up and slope > FILTER_D1_SLOPE_MIN:
+                return self._evaluate_long(snapshot, regime, m15)
+            if short_bias and h1_down and slope < -FILTER_D1_SLOPE_MIN:
+                return self._evaluate_short(snapshot, regime, m15)
+            return None
 
         if long_bias and h1_up:
             return self._evaluate_long(snapshot, regime, m15)
@@ -119,6 +154,8 @@ class TrendPullback(Strategy):
 
         tp_price  = entry + TARGET_R * risk
         score     = self._score(last, regime, side="long")
+        if STRICT_TIER_A and score < MIN_QUALITY_SCORE:
+            return None
         tier      = "A" if score >= TIER_A_SCORE else "B"
         risk_pct  = TIER_A_RISK_PCT if tier == "A" else TIER_B_RISK_PCT
 
@@ -168,6 +205,8 @@ class TrendPullback(Strategy):
 
         tp_price   = entry - TARGET_R * risk
         score      = self._score(last, regime, side="short")
+        if STRICT_TIER_A and score < MIN_QUALITY_SCORE:
+            return None
         tier       = "A" if score >= TIER_A_SCORE else "B"
         risk_pct   = TIER_A_RISK_PCT if tier == "A" else TIER_B_RISK_PCT
 

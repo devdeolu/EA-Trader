@@ -48,7 +48,31 @@ def main() -> None:
     ap.add_argument("--symbol",   default=SYMBOL)
     ap.add_argument("--balance",  type=float, default=10_000.0)
     ap.add_argument("--tfs",      nargs="+", default=TIMEFRAMES)
+    ap.add_argument("--target-r", type=float, default=None,
+                    help="Override TARGET_R in trend_pullback")
+    ap.add_argument("--quality",  type=float, default=None,
+                    help="Override MIN_QUALITY_SCORE")
+    ap.add_argument("--sl-buf",   type=float, default=None,
+                    help="Override SL_ATR_BUFFER")
+    ap.add_argument("--rsi-ob",   type=float, default=None,
+                    help="Override RSI_OVERBOUGHT")
+    ap.add_argument("--rsi-os",   type=float, default=None,
+                    help="Override RSI_OVERSOLD")
+    ap.add_argument("--no-quality", action="store_true",
+                    help="Disable STRICT_TIER_A quality gate")
+    ap.add_argument("--no-filters", action="store_true",
+                    help="Disable structural filters (H1 ADX, D1 slope, ATR floor)")
     args = ap.parse_args()
+
+    # Apply strategy overrides BEFORE constructing the strategy
+    from python.strategies import trend_pullback as tp_mod
+    if args.target_r is not None: tp_mod.TARGET_R          = args.target_r
+    if args.quality  is not None: tp_mod.MIN_QUALITY_SCORE = args.quality
+    if args.sl_buf   is not None: tp_mod.SL_ATR_BUFFER     = args.sl_buf
+    if args.rsi_ob   is not None: tp_mod.RSI_OVERBOUGHT    = args.rsi_ob
+    if args.rsi_os   is not None: tp_mod.RSI_OVERSOLD      = args.rsi_os
+    if args.no_quality:           tp_mod.STRICT_TIER_A     = False
+    if args.no_filters:           tp_mod.ENABLE_FILTERS    = False
 
     specs    = _symbol_specs(args.symbol)
     frames   = load_all(args.symbol, args.tfs)
