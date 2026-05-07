@@ -344,6 +344,29 @@ class TradeLogger:
             "worst_trade": round(row[3] or 0, 2),
         }
 
+    def get_consecutive_losses(self) -> int:
+        """
+        Return the length of the current trailing run of losing trades
+        (most recent first). Used by the live risk gate.
+        """
+        sql = "SELECT net_profit FROM trades ORDER BY close_time DESC LIMIT 50"
+        try:
+            with self._conn() as conn:
+                rows = conn.execute(sql).fetchall()
+        except Exception as e:
+            log.error(f"Consecutive loss query failed: {e}")
+            return 0
+
+        run = 0
+        for (net,) in rows:
+            if net is None:
+                break
+            if net <= 0:
+                run += 1
+            else:
+                break
+        return run
+
 
 # ── Quick test ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":

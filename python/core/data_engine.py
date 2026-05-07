@@ -19,12 +19,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import pandas as pd
 
 from config.settings import LOG_LEVEL, PRIMARY_TF, SYMBOL, TIMEFRAMES
-from python.core.mt5_connector import MT5Connector, add_indicators
+from python.core.indicators import add_indicators
+
+if TYPE_CHECKING:  # only imported for typing — avoids MT5 SDK dep at import time
+    from python.core.mt5_connector import MT5Connector
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL))
 log = logging.getLogger("data_engine")
@@ -73,7 +76,7 @@ class DataEngine:
 
     def __init__(
         self,
-        connector:  MT5Connector,
+        connector:  "MT5Connector",
         symbol:     str = SYMBOL,
         timeframes: list[str] = None,
         primary_tf: str = PRIMARY_TF,
@@ -138,6 +141,7 @@ class DataEngine:
 
 if __name__ == "__main__":
     print("Testing data engine (requires running MT5 terminal)...")
+    from python.core.mt5_connector import MT5Connector
     conn = MT5Connector()
     if not conn.connect():
         print("  Could not connect to MT5.")
