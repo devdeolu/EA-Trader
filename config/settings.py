@@ -62,6 +62,19 @@ FILTER_D1_SLOPE_MIN = 0.0    # require D1 EMA_MACRO slope >0 for longs (<0 short
 FILTER_ATR_RATIO_MIN= 0.7    # M15 ATR must be >= this × 20-bar avg (kills chop)
 ENABLE_FILTERS      = False  # master switch — turn on to apply structural filters above
 
+# ── Per-symbol parameter overrides (from optimization sweeps) ─────────────────
+# Keys override module-level defaults in trend_pullback only for the listed
+# symbol. Anything not listed uses the global defaults above. Discovered via
+# scripts/sweep_xauusd.py and similar two-stage sweeps.
+SYMBOL_PARAMS = {
+    "XAUUSD": {
+        "target_r":        3.0,    # was 2.0 → boosts +6.04% to +7.79%
+        "sl_atr_buffer":   0.5,
+        "enable_filters":  True,   # H1 ADX + D1 slope + ATR floor
+        "strict_tier_a":   False,
+    },
+}
+
 # ── Partial take profit ───────────────────────────────────────────────────────
 PARTIAL_TP_R        = 1.5    # close 50% at this R multiple
 PARTIAL_TP_SIZE     = 0.50   # fraction of position to close

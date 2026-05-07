@@ -66,6 +66,14 @@ def main() -> None:
 
     # Apply strategy overrides BEFORE constructing the strategy
     from python.strategies import trend_pullback as tp_mod
+    from config import settings as _settings
+    overrides_used = any(v is not None for v in (
+        args.target_r, args.quality, args.sl_buf, args.rsi_ob, args.rsi_os
+    )) or args.no_quality or args.no_filters
+    if overrides_used and args.symbol in _settings.SYMBOL_PARAMS:
+        # CLI flags must win over per-symbol presets
+        _settings.SYMBOL_PARAMS = {k: v for k, v in _settings.SYMBOL_PARAMS.items()
+                                   if k != args.symbol}
     if args.target_r is not None: tp_mod.TARGET_R          = args.target_r
     if args.quality  is not None: tp_mod.MIN_QUALITY_SCORE = args.quality
     if args.sl_buf   is not None: tp_mod.SL_ATR_BUFFER     = args.sl_buf

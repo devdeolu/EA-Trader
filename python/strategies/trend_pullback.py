@@ -38,6 +38,7 @@ from config.settings import (
     TIER_A_RISK_PCT,
     TIER_B_RISK_PCT,
 )
+from config import settings as _settings
 from python.core.data_engine import MarketSnapshot
 from python.core.regime import Regime, RegimeReading
 from python.strategies.base import Candidate, Strategy
@@ -53,6 +54,17 @@ RSI_OVERSOLD      = 30.0
 TIER_A_SCORE      = 7.0     # promote to Tier A risk size at this score
 MIN_QUALITY_SCORE = 4.5     # reject signals below this when STRICT_TIER_A=True
 TARGET_R          = max(2.0, MIN_RR_RATIO)
+
+
+def _params_for(symbol: str) -> dict:
+    """Return per-symbol strategy params with module-level defaults as fallback."""
+    overrides = getattr(_settings, "SYMBOL_PARAMS", {}).get(symbol, {})
+    return {
+        "target_r":       overrides.get("target_r",       TARGET_R),
+        "sl_atr_buffer":  overrides.get("sl_atr_buffer",  SL_ATR_BUFFER),
+        "enable_filters": overrides.get("enable_filters", ENABLE_FILTERS),
+        "strict_tier_a":  overrides.get("strict_tier_a",  STRICT_TIER_A),
+    }
 
 
 class TrendPullback(Strategy):
@@ -80,6 +92,8 @@ class TrendPullback(Strategy):
         last_h1  = h1.iloc[-2]
         last_d1  = d1.iloc[-2]
 
+        params = _params_for(snapshot.symbol)
+
         # ── Macro bias ───────────────────────────────────────────────────
         long_bias  = last_d1["close"] > last_d1["ema_macro"]
         short_bias = last_d1["close"] < last_d1["ema_macro"]
@@ -89,7 +103,7 @@ class TrendPullback(Strategy):
         h1_down = last_h1["ema_fast"] < last_h1["ema_slow"]
 
         # ── Structural filters (Option A) ───────────────────────────────
-        if ENABLE_FILTERS:
+        if params["enable_filters"]:
             # 1) H1 ADX strength — multi-TF trend confirmation
             h1_adx = float(last_h1.get("adx", 0))
             if h1_adx < FILTER_H1_ADX_MIN:
@@ -112,15 +126,15 @@ class TrendPullback(Strategy):
                 return None
 
             if long_bias and h1_up and slope > FILTER_D1_SLOPE_MIN:
-                return self._evaluate_long(snapshot, regime, m15)
+                return self._evaluate_long(snapshot, regime, m15, params)
             if short_bias and h1_down and slope < -FILTER_D1_SLOPE_MIN:
-                return self._evaluate_short(snapshot, regime, m15)
+                return self._evaluate_short(snapshot, regime, m15, params)
             return None
 
         if long_bias and h1_up:
-            return self._evaluate_long(snapshot, regime, m15)
+            return self._evaluate_long(snapshot, regime, m15, params)
         if short_bias and h1_down:
-            return self._evaluate_short(snapshot, regime, m15)
+            return self._evaluate_short(snapshot, regime, m15, params)
         return None
 
     # ── Long ────────────────────────────────────────────────────────────
@@ -130,6 +144,7 @@ class TrendPullback(Strategy):
         snapshot: MarketSnapshot,
         regime:   RegimeReading,
         m15:      pd.DataFrame,
+        params:   dict,
     ) -> Optional[Candidate]:
         last = m15.iloc[-2]
         atr  = float(last["atr"])
@@ -145,16 +160,17 @@ class TrendPullback(Strategy):
             return None
 
         swing_low = float(m15["low"].iloc[-(SWING_LOOKBACK + 2):-2].min())
-        sl_price  = swing_low - SL_ATR_BUFFER * atr
+        sl_price  = swing_low - params["sl_atr_buffer"] * atr
         ask       = snapshot.tick.get("ask") or float(last["close"])
         entry     = float(ask)
         risk      = entry - sl_price
         if risk <= 0:
             return None
 
-        tp_price  = entry + TARGET_R * risk
+        target_r  = params["target_r"]
+        tp_price  = entry + target_r * risk
         score     = self._score(last, regime, side="long")
-        if STRICT_TIER_A and score < MIN_QUALITY_SCORE:
+        if params["strict_tier_a"] and score < MIN_QUALITY_SCORE:
             return None
         tier      = "A" if score >= TIER_A_SCORE else "B"
         risk_pct  = TIER_A_RISK_PCT if tier == "A" else TIER_B_RISK_PCT
@@ -171,7 +187,7 @@ class TrendPullback(Strategy):
             rationale=(
                 f"D1>EMA200, H1 fast>slow, M15 pullback to EMA{int(last['ema_fast'] * 0)} "
                 f"with bullish reaction; ADX={regime.adx:.1f}; "
-                f"partial_tp_R={PARTIAL_TP_R}, target_R={TARGET_R}"
+                f"partial_tp_R={PARTIAL_TP_R}, target_R={target_r}"
             ),
         )
 
@@ -182,6 +198,7 @@ class TrendPullback(Strategy):
         snapshot: MarketSnapshot,
         regime:   RegimeReading,
         m15:      pd.DataFrame,
+        params:   dict,
     ) -> Optional[Candidate]:
         last = m15.iloc[-2]
         atr  = float(last["atr"])
@@ -196,16 +213,17 @@ class TrendPullback(Strategy):
             return None
 
         swing_high = float(m15["high"].iloc[-(SWING_LOOKBACK + 2):-2].max())
-        sl_price   = swing_high + SL_ATR_BUFFER * atr
+        sl_price   = swing_high + params["sl_atr_buffer"] * atr
         bid        = snapshot.tick.get("bid") or float(last["close"])
         entry      = float(bid)
         risk       = sl_price - entry
         if risk <= 0:
             return None
 
-        tp_price   = entry - TARGET_R * risk
+        target_r   = params["target_r"]
+        tp_price   = entry - target_r * risk
         score      = self._score(last, regime, side="short")
-        if STRICT_TIER_A and score < MIN_QUALITY_SCORE:
+        if params["strict_tier_a"] and score < MIN_QUALITY_SCORE:
             return None
         tier       = "A" if score >= TIER_A_SCORE else "B"
         risk_pct   = TIER_A_RISK_PCT if tier == "A" else TIER_B_RISK_PCT
@@ -221,7 +239,7 @@ class TrendPullback(Strategy):
             risk_pct=risk_pct,
             rationale=(
                 f"D1<EMA200, H1 fast<slow, M15 pullback to EMA with bearish reaction; "
-                f"ADX={regime.adx:.1f}; target_R={TARGET_R}"
+                f"ADX={regime.adx:.1f}; target_R={target_r}"
             ),
         )
 
