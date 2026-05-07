@@ -64,5 +64,9 @@ DATA_DIR    = os.path.join(BASE_DIR, "data")
 LOG_DIR     = os.path.join(BASE_DIR, "logs")
 DB_PATH     = os.path.join(DATA_DIR, "apex_trades.db")
 
+# ── Backtesting ───────────────────────────────────────────────────────────────
+BACKTEST_SPREAD_PIPS         = 0.8   # average modelled spread during sessions
+BACKTEST_COMMISSION_PER_LOT  = 7.0   # round-turn USD per standard lot
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 LOG_LEVEL   = "INFO"    # DEBUG | INFO | WARNING | ERROR
